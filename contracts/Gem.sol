@@ -27,6 +27,9 @@ contract Gem is ERC20PresetFixedSupply, AccessControlEnumerable {
     uint256 public baseCzusdLocked;
     uint256 public totalCzusdSpent;
 
+    //TODO: Add burn on transfer
+    //TODO: Add keeper upkeep for exchanging CZUSD to BNB and sending to Kevin
+
     constructor(
         CZUsd _czusd,
         IAmmRouter02 _ammRouter,
@@ -70,6 +73,23 @@ contract Gem is ERC20PresetFixedSupply, AccessControlEnumerable {
                         lockedLpCzusdBal
                     )
                 );
+        }
+    }
+
+    function _transfer(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) internal override {
+        require(sender != address(0), "ERC20: transfer from the zero address");
+        require(recipient != address(0), "ERC20: transfer to the zero address");
+
+        //Handle burn
+        if (isExempt[sender] || isExempt[recipient]) {
+            super._transfer(sender, recipient, amount);
+        } else {
+            uint256 burnAmount = (amount * burnBPS) / 10000;
+            if (burnAmount > 0) super._burn(sender, burnAmount);
         }
     }
 
