@@ -86,4 +86,11 @@ contract GemSale is Ownable, Pausable {
         startEpoch = _startEpoch;
         endEpoch = _endEpoch;
     }
+
+    function recoverERC20(address tokenAddress) external onlyOwner {
+        IERC20(tokenAddress).transfer(
+            _msgSender(),
+            IERC20(tokenAddress).balanceOf(address(this))
+        );
+    }
 }

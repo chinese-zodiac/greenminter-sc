@@ -4,6 +4,7 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -14,6 +15,7 @@ import "./interfaces/IAmmFactory.sol";
 
 contract GemBurner is Ownable, KeeperCompatibleInterface {
     bytes32 public constant PROJECT_OWNER = keccak256("PROJECT_OWNER");
+    using Address for address payable;
 
     ERC20PresetFixedSupply public gemToken;
     uint256 public burnTriggerWad;
@@ -45,7 +47,7 @@ contract GemBurner is Ownable, KeeperCompatibleInterface {
         public
         view
         override
-        returns (bool upkeepNeeded, bytes memory //performData)
+        returns (bool upkeepNeeded, bytes memory performData)
     {
         upkeepNeeded = canBurn();
     }
@@ -66,5 +68,16 @@ contract GemBurner is Ownable, KeeperCompatibleInterface {
             block.timestamp //uint256 deadline
         );
         gemToken.burn(gemToken.balanceOf(address(this)));
+    }
+
+    function recoverERC20(address tokenAddress) external onlyOwner {
+        IERC20(tokenAddress).transfer(
+            _msgSender(),
+            IERC20(tokenAddress).balanceOf(address(this))
+        );
+    }
+
+    function withdraw(address payable _to) external onlyOwner {
+        _to.sendValue(address(this).balance);
     }
 }
