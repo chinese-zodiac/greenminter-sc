@@ -6,18 +6,25 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
 import "./czodiac/CZUsd.sol";
 import "./libs/AmmLibrary.sol";
 import "./interfaces/IAmmFactory.sol";
 import "./interfaces/IAmmPair.sol";
 import "./interfaces/IAmmRouter02.sol";
 
-contract Gem is ERC20PresetFixedSupply, AccessControlEnumerable {
+contract Gem is
+    ERC20PresetFixedSupply,
+    AccessControlEnumerable,
+    KeeperCompatibleInterface
+{
     using SafeERC20 for IERC20;
     using Address for address payable;
     bytes32 public constant MANAGER = keccak256("MANAGER");
+    address public devWallet;
 
     uint256 public burnBPS = 1000;
+    uint256 public maxBurnBPS = 30000;
     mapping(address => bool) public isExempt;
 
     IAmmPair public ammCzusdPair;
@@ -26,27 +33,28 @@ contract Gem is ERC20PresetFixedSupply, AccessControlEnumerable {
 
     uint256 public baseCzusdLocked;
     uint256 public totalCzusdSpent;
-
-    //TODO: Add keeper upkeep for exchanging CZUSD to BNB and sending to Kevin
+    uint256 public lockedCzusdTriggerLevel;
 
     constructor(
         CZUsd _czusd,
         IAmmRouter02 _ammRouter,
         IAmmFactory _factory,
+        address _devWallet,
         uint256 _baseCzusdLocked
     ) ERC20PresetFixedSupply("GreenMiner", "GEM", 200000 ether, msg.sender) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MANAGER, msg.sender);
 
-        setCzusd(_czusd);
-        setAmmRouter(_ammRouter);
-        setBaseCzusdLocked(_baseCzusdLocked);
+        ADMIN_setCzusd(_czusd);
+        ADMIN_setAmmRouter(_ammRouter);
+        ADMIN_setBaseCzusdLocked(_baseCzusdLocked);
+        MANAGER_setDevWallet(_devWallet);
+
+        MANAGER_setIsExempt(msg.sender, true);
 
         ammCzusdPair = IAmmPair(
             _factory.createPair(address(this), address(czusd))
         );
-
-        setIsExempt(msg.sender, true);
     }
 
     function lockedCzusd() public view returns (uint256 lockedCzusd_) {
@@ -75,6 +83,41 @@ contract Gem is ERC20PresetFixedSupply, AccessControlEnumerable {
         }
     }
 
+    function availableWadToSend() public view returns (uint256) {
+        return lockedCzusd() - baseCzusdLocked - totalCzusdSpent;
+    }
+
+    function isOverTriggerLevel() public view returns (bool) {
+        return lockedCzusdTriggerLevel <= availableWadToSend();
+    }
+
+    function checkUpkeep(bytes calldata)
+        public
+        view
+        override
+        returns (bool upkeepNeeded, bytes memory)
+    {
+        upkeepNeeded = isOverTriggerLevel();
+    }
+
+    function performUpkeep(bytes calldata) external override {
+        require(isOverTriggerLevel(), "GEM: Not over trigger level");
+        uint256 wadToSend = availableWadToSend();
+        totalCzusdSpent += wadToSend;
+        czusd.mint(address(this), wadToSend);
+        address[] memory path = new address[](4);
+        path[0] = address(czusd);
+        path[1] = address(0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56); //BUSD
+        path[2] = ammRouter.WETH(); //WBNB
+        ammRouter.swapExactTokensForETH(
+            czusd.balanceOf(address(this)),
+            0,
+            path,
+            devWallet,
+            block.timestamp
+        );
+    }
+
     function _transfer(
         address sender,
         address recipient,
@@ -93,11 +136,23 @@ contract Gem is ERC20PresetFixedSupply, AccessControlEnumerable {
         }
     }
 
-    function setIsExempt(address _for, bool _to) public onlyRole(MANAGER) {
+    function MANAGER_setIsExempt(address _for, bool _to)
+        public
+        onlyRole(MANAGER)
+    {
         isExempt[_for] = _to;
     }
 
-    function recoverERC20(address tokenAddress)
+    function MANAGER_setBps(uint256 _toBps) public onlyRole(MANAGER) {
+        require(_toBps <= maxBurnBPS, "GEM: Burn too high");
+        burnBPS = _toBps;
+    }
+
+    function MANAGER_setDevWallet(address _to) public onlyRole(MANAGER) {
+        devWallet = _to;
+    }
+
+    function ADMIN_recoverERC20(address tokenAddress)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
@@ -107,28 +162,35 @@ contract Gem is ERC20PresetFixedSupply, AccessControlEnumerable {
         );
     }
 
-    function withdraw(address payable _to)
+    function ADMIN_withdraw(address payable _to)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         _to.sendValue(address(this).balance);
     }
 
-    function setBaseCzusdLocked(uint256 _to)
+    function ADMIN_setBaseCzusdLocked(uint256 _to)
         public
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         baseCzusdLocked = _to;
     }
 
-    function setAmmRouter(IAmmRouter02 _to)
+    function ADMIN_setAmmRouter(IAmmRouter02 _to)
         public
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         ammRouter = _to;
     }
 
-    function setCzusd(CZUsd _to) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    function ADMIN_setCzusd(CZUsd _to) public onlyRole(DEFAULT_ADMIN_ROLE) {
         czusd = _to;
+    }
+
+    function ADMIN_setMaxBurnBps(uint256 _to)
+        public
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        maxBurnBPS = _to;
     }
 }
