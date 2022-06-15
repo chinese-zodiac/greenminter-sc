@@ -27,7 +27,6 @@ contract Gem is ERC20PresetFixedSupply, AccessControlEnumerable {
     uint256 public baseCzusdLocked;
     uint256 public totalCzusdSpent;
 
-    //TODO: Add burn on transfer
     //TODO: Add keeper upkeep for exchanging CZUSD to BNB and sending to Kevin
 
     constructor(
@@ -90,6 +89,7 @@ contract Gem is ERC20PresetFixedSupply, AccessControlEnumerable {
         } else {
             uint256 burnAmount = (amount * burnBPS) / 10000;
             if (burnAmount > 0) super._burn(sender, burnAmount);
+            super._transfer(sender, recipient, amount - burnAmount);
         }
     }
 
