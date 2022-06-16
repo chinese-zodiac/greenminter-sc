@@ -47,10 +47,6 @@ contract GemSale is Ownable, Pausable {
         emit Deposit(msg.sender, msg.value);
     }
 
-    function withdraw(address payable _to) external onlyOwner {
-        _to.sendValue(address(this).balance);
-    }
-
     function totalDepositors() external view returns (uint256) {
         return trackedAddresses.size();
     }
@@ -65,6 +61,10 @@ contract GemSale is Ownable, Pausable {
         returns (int256)
     {
         return trackedAddresses.getIndexOfKey(_depositor);
+    }
+
+    function withdraw(address payable _to) external onlyOwner {
+        _to.sendValue(address(this).balance);
     }
 
     function pause() external onlyOwner {

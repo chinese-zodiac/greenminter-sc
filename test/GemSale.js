@@ -73,4 +73,42 @@ describe("GemSale", function () {
   it("Should revert when over maxDepositWad", async function () {
     await expect(gemSale.deposit({value:parseEther("3.01")})).to.be.revertedWith("GemSale: Deposit too large");
   });
+  it("Should revert when over hardcap", async function () {
+    await gemSale.setHardcap(parseEther("1"));
+    await expect(gemSale.deposit({value:parseEther("1.2")})).to.be.revertedWith("GemSale: Over hardcap");
+  });
+  it("Should track first depositor", async function () {
+    await gemSale.setHardcap(parseEther("15"));
+
+    await gemSale.deposit({value:parseEther("1.2")});
+    const totalDepositors = await gemSale.totalDepositors();
+    const totalDeposits = await gemSale.totalDeposits();
+    const firstDepositedAmount = await gemSale.depositedAmount(owner.address);
+    const firstDepositorAddress = await gemSale.getDepositorFromIndex(0);
+    const firstDepositorIndex = await gemSale.getIndexFromDepositor(owner.address);
+    expect(totalDepositors).to.eq(1);
+    expect(totalDeposits).to.eq(parseEther("1.2"));
+    expect(firstDepositedAmount).to.eq(parseEther("1.2"));
+    expect(firstDepositorIndex).to.eq(0);
+    expect(firstDepositorAddress).to.eq(owner.address);
+  });
+  it("Should track second depositor", async function () {
+    await gemSale.connect(trader2).deposit({value:parseEther("0.5")});
+    const totalDepositors = await gemSale.totalDepositors();
+    const totalDeposits = await gemSale.totalDeposits();
+    const firstDepositedAmount = await gemSale.depositedAmount(owner.address);
+    const firstDepositorAddress = await gemSale.getDepositorFromIndex(0);
+    const firstDepositorIndex = await gemSale.getIndexFromDepositor(owner.address);
+    const secondDepositedAmount = await gemSale.depositedAmount(trader2.address);
+    const secondDepositorAddress = await gemSale.getDepositorFromIndex(1);
+    const secondDepositorIndex = await gemSale.getIndexFromDepositor(trader2.address);
+    expect(totalDepositors).to.eq(2);
+    expect(totalDeposits).to.eq(parseEther("1.7"));
+    expect(firstDepositedAmount).to.eq(parseEther("1.2"));
+    expect(firstDepositorIndex).to.eq(0);
+    expect(firstDepositorAddress).to.eq(owner.address);
+    expect(secondDepositedAmount).to.eq(parseEther("0.5"));
+    expect(secondDepositorIndex).to.eq(1);
+    expect(secondDepositorAddress).to.eq(trader2.address);
+  });
 });
