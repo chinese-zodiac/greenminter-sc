@@ -35,6 +35,8 @@ contract Gem is
     uint256 public totalCzusdSpent;
     uint256 public lockedCzusdTriggerLevel;
 
+    bool public tradingOpen;
+
     constructor(
         CZUsd _czusd,
         IAmmRouter02 _ammRouter,
@@ -130,6 +132,7 @@ contract Gem is
         if (isExempt[sender] || isExempt[recipient]) {
             super._transfer(sender, recipient, amount);
         } else {
+            require(tradingOpen, "GEM: Not open");
             uint256 burnAmount = (amount * burnBPS) / 10000;
             if (burnAmount > 0) super._burn(sender, burnAmount);
             super._transfer(sender, recipient, amount - burnAmount);
@@ -150,6 +153,10 @@ contract Gem is
 
     function MANAGER_setDevWallet(address _to) public onlyRole(MANAGER) {
         devWallet = _to;
+    }
+
+    function ADMIN_openTrading() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        tradingOpen = true;
     }
 
     function ADMIN_recoverERC20(address tokenAddress)
