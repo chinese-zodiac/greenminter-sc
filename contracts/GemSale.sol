@@ -17,8 +17,10 @@ contract GemSale is Ownable, Pausable {
 
     event Deposit(address, uint256);
 
-    uint256 public minDepositWad = 0.01 ether;
+    uint256 public minDepositWad = 0.1 ether;
     uint256 public maxDepositWad = 3 ether;
+    uint256 public hardcap = 15 ether;
+    uint256 public totalDeposits;
 
     uint256 public startEpoch;
     uint256 public endEpoch;
@@ -36,10 +38,12 @@ contract GemSale is Ownable, Pausable {
     }
 
     function deposit() public payable whenNotPaused whenOpen {
-        trackedAddresses.add(msg.sender);
+        require(totalDeposits + msg.value <= hardcap, "GemSale: Over hardcap");
         require(msg.value >= minDepositWad, "GemSale: Deposit too small");
         require(msg.value <= maxDepositWad, "GemSale: Deposit too large");
+        trackedAddresses.add(msg.sender);
         depositedAmount[msg.sender] += msg.value;
+        totalDeposits += msg.value;
         emit Deposit(msg.sender, msg.value);
     }
 
