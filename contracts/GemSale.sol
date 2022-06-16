@@ -83,6 +83,10 @@ contract GemSale is Ownable, Pausable {
         maxDepositWad = _to;
     }
 
+    function setHardcap(uint256 _to) external onlyOwner {
+        hardcap = _to;
+    }
+
     function setWhenOpen(uint256 _startEpoch, uint256 _endEpoch)
         external
         onlyOwner
