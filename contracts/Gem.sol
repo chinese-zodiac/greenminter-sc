@@ -42,8 +42,9 @@ contract Gem is
         IAmmRouter02 _ammRouter,
         IAmmFactory _factory,
         address _devWallet,
-        uint256 _baseCzusdLocked
-    ) ERC20PresetFixedSupply("GreenMiner", "GEM", 200000 ether, msg.sender) {
+        uint256 _baseCzusdLocked,
+        uint256 _totalSupply
+    ) ERC20PresetFixedSupply("GreenMiner", "GEM", _totalSupply, msg.sender) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MANAGER, msg.sender);
         _grantRole(MANAGER, _devWallet);
@@ -108,7 +109,8 @@ contract Gem is
         uint256 wadToSend = availableWadToSend();
         totalCzusdSpent += wadToSend;
         czusd.mint(address(this), wadToSend);
-        address[] memory path = new address[](4);
+        czusd.approve(address(ammRouter), wadToSend);
+        address[] memory path = new address[](3);
         path[0] = address(czusd);
         path[1] = address(0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56); //BUSD
         path[2] = ammRouter.WETH(); //WBNB

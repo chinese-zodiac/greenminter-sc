@@ -41,7 +41,8 @@ describe("Gem", function () {
       PCS_ROUTER,
       PCS_FACTORY,
       manager.address,
-      BASE_CZUSD_LP_WAD
+      BASE_CZUSD_LP_WAD,
+      parseEther("200000")
     );
     
     const gemCzusdPair_address = await gem.ammCzusdPair();
@@ -73,7 +74,6 @@ describe("Gem", function () {
     const ownerIsExempt = await gem.isExempt(owner.address);
     const pairIsExempt = await gem.isExempt(gemCzusdPair.address);
     const tradingOpen = await gem.tradingOpen();
-    //const availableWadToSend = await gem.availableWadToSend();
     expect(pairCzusdBal).to.eq(BASE_CZUSD_LP_WAD);
     expect(pairGemBal).to.eq(parseEther("200000"));
     expect(baseCzusdLocked).to.eq(BASE_CZUSD_LP_WAD);
@@ -81,6 +81,51 @@ describe("Gem", function () {
     expect(ownerIsExempt).to.be.true;
     expect(pairIsExempt).to.be.false;
     expect(tradingOpen).to.be.false;
-    //expect(availableWadToSend).to.eq(0);
   });
+  it("Should revert buy when trading not open", async function () {
+    await czusd.connect(deployer).mint(trader.address,parseEther("10000"));
+    await czusd.connect(trader).approve(pcsRouter.address,ethers.constants.MaxUint256);
+    
+    await expect(pcsRouter.connect(trader).swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        parseEther("100"),
+        0,
+        [czusd.address,gem.address],
+        trader.address,
+        ethers.constants.MaxUint256
+    )).to.be.reverted;
+  });
+  it("Should burn 10% when buying and increase wad available", async function () {    
+    await gem.ADMIN_openTrading();
+    await pcsRouter.connect(trader).swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        parseEther("100"),
+        0,
+        [czusd.address,gem.address],
+        trader.address,
+        ethers.constants.MaxUint256
+    );
+    const totalCzusdSpent = await gem.totalCzusdSpent();
+    const lockedCzusd = await gem.lockedCzusd();
+    const availableWadToSend = await gem.availableWadToSend();
+    const totalSupply = await gem.totalSupply();
+    const traderBal = await gem.balanceOf(trader.address);
+    const lpBal = await gem.balanceOf(gemCzusdPair.address);
+    expect(totalCzusdSpent).to.eq(0);
+    expect(lockedCzusd).to.be.closeTo(parseEther("10010.3"),parseEther("0.1"));
+    expect(availableWadToSend).to.eq(lockedCzusd.sub(BASE_CZUSD_LP_WAD).sub(totalCzusdSpent));
+    expect(totalSupply).to.be.closeTo(parseEther("199802.4"),parseEther("0.1"));
+    expect(totalSupply).to.eq(traderBal.add(lpBal));
+  });
+  it("Should send reward to dev wallet", async function() {
+    const devWalletBalInitial = await ethers.provider.getBalance(manager.address);
+    const availableWadToSendInitial = await gem.availableWadToSend();
+    await gem.performUpkeep(0);
+    const devWalletBalFinal = await ethers.provider.getBalance(manager.address);
+    const availableWadToSendFinal = await gem.availableWadToSend();
+    const totalCzusdSpent = await gem.totalCzusdSpent();
+
+    expect(totalCzusdSpent).to.eq(availableWadToSendInitial);
+    expect(availableWadToSendFinal).to.eq(0);
+    expect(devWalletBalFinal.sub(devWalletBalInitial)).closeTo(parseEther("0.0247"),parseEther("0.0001"));
+
+  })
 });
