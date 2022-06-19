@@ -24,7 +24,7 @@ contract Gem is
     address public devWallet;
 
     uint256 public burnBPS = 1000;
-    uint256 public maxBurnBPS = 30000;
+    uint256 public maxBurnBPS = 3000;
     mapping(address => bool) public isExempt;
 
     IAmmPair public ammCzusdPair;
@@ -33,7 +33,7 @@ contract Gem is
 
     uint256 public baseCzusdLocked;
     uint256 public totalCzusdSpent;
-    uint256 public lockedCzusdTriggerLevel;
+    uint256 public lockedCzusdTriggerLevel = 100 ether;
 
     bool public tradingOpen;
 
@@ -46,6 +46,7 @@ contract Gem is
     ) ERC20PresetFixedSupply("GreenMiner", "GEM", 200000 ether, msg.sender) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MANAGER, msg.sender);
+        _grantRole(MANAGER, _devWallet);
 
         ADMIN_setCzusd(_czusd);
         ADMIN_setAmmRouter(_ammRouter);
@@ -53,6 +54,7 @@ contract Gem is
         MANAGER_setDevWallet(_devWallet);
 
         MANAGER_setIsExempt(msg.sender, true);
+        MANAGER_setIsExempt(_devWallet, true);
 
         ammCzusdPair = IAmmPair(
             _factory.createPair(address(this), address(czusd))
@@ -103,7 +105,6 @@ contract Gem is
     }
 
     function performUpkeep(bytes calldata) external override {
-        require(isOverTriggerLevel(), "GEM: Not over trigger level");
         uint256 wadToSend = availableWadToSend();
         totalCzusdSpent += wadToSend;
         czusd.mint(address(this), wadToSend);
@@ -181,6 +182,13 @@ contract Gem is
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         baseCzusdLocked = _to;
+    }
+
+    function ADMIN_setLockedCzusdTriggerLevel(uint256 _to)
+        public
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        lockedCzusdTriggerLevel = _to;
     }
 
     function ADMIN_setAmmRouter(IAmmRouter02 _to)
