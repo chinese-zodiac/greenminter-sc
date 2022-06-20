@@ -53,7 +53,6 @@ contract GemBurner is Ownable, KeeperCompatibleInterface {
     }
 
     function performUpkeep(bytes calldata) external override {
-        require(canBurn(), "GemBurner: Cannot perform burn");
         address[] memory path = new address[](4);
         path[0] = router.WETH(); //WBNB
         path[1] = address(0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56); //BUSD
