@@ -65,6 +65,7 @@ describe("Gem", function () {
       gem.address,
       ethers.constants.MaxUint256
     );
+    await gem.ADMIN_openTrading();
 
     const GemBurner = await ethers.getContractFactory("GemBurner");
     gemBurner = await GemBurner.deploy(
@@ -73,6 +74,25 @@ describe("Gem", function () {
       PCS_ROUTER,
       owner.address
     );
+
+  });
+  it("Should have checkupkeep false without bnb", async function () {
+    const checkupkeep = await gemBurner.checkUpkeep(0);
+    expect(checkupkeep[0]).to.be.false;
+  });
+  it("Should  have checkupkeep false with bnb", async function () {
+    await owner.sendTransaction({
+      to:gemBurner.address,
+      value:parseEther("1")
+    });
+    const checkupkeep = await gemBurner.checkUpkeep(0);
+    expect(checkupkeep[0]).to.be.true;
+  });
+  it("Should burn gem", async function () {
+    totalSupplyInitial = await gem.totalSupply();
+    await gemBurner.performUpkeep(0);
+    totalSupplyFinal = await gem.totalSupply();
+    expect(totalSupplyInitial.sub(totalSupplyFinal)).to.be.closeTo(parseEther("7876"),parseEther("1"));
 
   });
 
